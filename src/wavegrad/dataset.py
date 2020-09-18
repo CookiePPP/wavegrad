@@ -20,21 +20,29 @@ import torch
 import torchaudio
 
 from glob import glob
-
+from tqdm import tqdm
 
 class NumpyDataset(torch.utils.data.Dataset):
-  def __init__(self, paths):
+  def __init__(self, params, paths):
     super().__init__()
+    self.params = params
     self.filenames = []
     for path in paths:
       self.filenames += glob(f'{path}/**/*.wav', recursive=True)
-
+    pre_filenames = len(self.filenames)
+    self.filenames = [filename for filename in tqdm(self.filenames) if len(np.load(self.get_spec_name(filename)).T) >= self.params.crop_mel_frames]
+    post_filenames = len(self.filenames)
+    print(f'{post_filenames} ({post_filenames/pre_filenames:.1%}) usable files in dataset.')
+  
   def __len__(self):
     return len(self.filenames)
-
+  
+  def get_spec_name(self, audio_filename):
+    return audio_filename.replace('.wav', '.npy')
+  
   def __getitem__(self, idx):
     audio_filename = self.filenames[idx]
-    spec_filename = audio_filename.replace('.wav', '.npy')
+    spec_filename = self.get_spec_name(audio_filename)
     signal, _ = torchaudio.load_wav(audio_filename)
     spectrogram = np.load(spec_filename)
     return {
@@ -64,9 +72,10 @@ class Collator:
       end *= samples_per_frame
       record['audio'] = record['audio'][start:end]
       record['audio'] = np.pad(record['audio'], (0, (end-start) - len(record['audio'])), mode='constant')
-
-    audio = np.stack([record['audio'] for record in minibatch if record['audio'] is not None])
-    spectrogram = np.stack([record['spectrogram'] for record in minibatch if record['spectrogram'] is not None])
+    assert len([record for record in minibatch if 'audio' in record.keys()]), 'minibatch has no samples of sufficient length.'
+    
+    audio = np.stack([record['audio'] for record in minibatch if 'audio' in record])
+    spectrogram = np.stack([record['spectrogram'] for record in minibatch if 'spectrogram' in record])
     return {
         'audio': torch.from_numpy(audio),
         'spectrogram': torch.from_numpy(spectrogram),
@@ -75,7 +84,7 @@ class Collator:
 
 def from_path(data_dirs, params):
   return torch.utils.data.DataLoader(
-      NumpyDataset(data_dirs),
+      NumpyDataset(params, data_dirs),
       batch_size=params.batch_size,
       collate_fn=Collator(params).collate,
       shuffle=True,

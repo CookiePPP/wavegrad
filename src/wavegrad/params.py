@@ -34,14 +34,14 @@ class AttrDict(dict):
 
 params = AttrDict(
     # Training params
-    batch_size=8,
+    batch_size=16,
     learning_rate=2e-4,
     max_grad_norm=1.0,
     
     # Data params
     sample_rate=48000,
     hop_samples=600,  # Don't change this. Really.
-    crop_mel_frames=24, # equiv to segment length. 24*600 = 14400 audio samples per item in batch
+    crop_mel_frames=24, # equiv to segment length. 24*600 = 14400 audio samples per item in batch ~= 0.3s
     
     # Model params
     noise_schedule=np.linspace(1e-6, 0.01, 1000).tolist(),
