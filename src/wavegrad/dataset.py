@@ -34,12 +34,12 @@ class NumpyDataset(torch.utils.data.Dataset):
 
   def __getitem__(self, idx):
     audio_filename = self.filenames[idx]
-    spec_filename = f'{audio_filename}.spec.npy'
+    spec_filename = audio_filename.replace('.wav', '.npy')
     signal, _ = torchaudio.load_wav(audio_filename)
     spectrogram = np.load(spec_filename)
     return {
         'audio': signal[0] / 32767.5,
-        'spectrogram': spectrogram.T
+        'spectrogram': spectrogram.T # [n_mel, enc_T]
     }
 
 
@@ -55,7 +55,7 @@ class Collator:
         del record['spectrogram']
         del record['audio']
         continue
-
+      
       start = random.randint(0, record['spectrogram'].shape[0] - self.params.crop_mel_frames)
       end = start + self.params.crop_mel_frames
       record['spectrogram'] = record['spectrogram'][start:end].T
